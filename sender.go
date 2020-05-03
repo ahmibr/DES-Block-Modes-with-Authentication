@@ -1,61 +1,92 @@
 package main
 
+import (
+	"bufio"
+	"fmt"
+	"net"
+	"os"
+	"strconv"
+	"strings"
+)
+
 func main() {
-	// file, err := os.Open("input.txt")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// defer file.Close()
+	file, _ := os.Open("key.txt")
 
-	// var lines []string
-	// scanner := bufio.NewScanner(file)
-	// for scanner.Scan() {
-	// 	lines = append(lines, scanner.Text())
-	// }
+	key := make([]byte, keyLength)
 
-	// key := lines[0]
-	// text := lines[1]
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		copy(key, []byte(scanner.Text()))
+	}
 
-	// fmt.Printf("Key = %v\n", key)
-	// fmt.Printf("Original text = %v\n", text)
+	file.Close()
 
-	// encryptedText := paddText([]byte(text))
-	// encryptedText = desEncrypt(encryptedText, []byte(key))
+	fmt.Println("Read key " + string(key))
 
-	// decryptedText := desDecrypt(encryptedText, []byte(key))
-	// decryptedText = unpaddText(decryptedText)
+	listener, error := net.Listen("tcp", ":12345")
+	if error != nil {
+		fmt.Println(error)
+	}
 
-	// encryptedText := cbcEncrypt([]byte(text), []byte(key), make([]byte, blockSize))
-	// decryptedText := cbcDecrypt(encryptedText, []byte(key), make([]byte, blockSize))
+	fmt.Println("Waiting connection")
+	socket, _ := listener.Accept()
 
-	// encryptedText := cfbEncrypt([]byte(text), []byte(key), make([]byte, blockSize))
-	// decryptedText := cfbDecrypt(encryptedText, []byte(key), make([]byte, blockSize))
+	defer socket.Close()
 
-	// encryptedText := ctrEncrypt([]byte(text), []byte(key))
-	// decryptedText := ctrDecrypt(encryptedText, []byte(key))
+	reader := bufio.NewReader(os.Stdin)
 
-	// messageWithMAC := createHMAC(encryptedText, []byte(key))
+	for {
+		encryptionModes := map[string]string{
+			"1": "ECB",
+			"2": "CBC",
+			"3": "CFB",
+			"4": "CTR",
+		}
 
-	// if len(messageWithMAC) < hashLength {
-	// 	fmt.Println("Invalid MAC")
-	// 	return
-	// }
+		fmt.Println("Choose mode of operation")
+		for i := 1; i <= 4; i++ {
+			fmt.Printf("%v %v\n", i, encryptionModes[strconv.Itoa(i)])
+		}
 
-	// message := messageWithMAC[:len(messageWithMAC)-hashLength]
-	// hashMAC := messageWithMAC[len(messageWithMAC)-hashLength:]
+		choosenMode := ""
 
-	// if !validateHMAC(message, hashMAC, []byte(key)) {
-	// 	fmt.Println("Invalid MAC")
-	// 	return
-	// }
+		for {
+			text, _ := reader.ReadString('\n')
+			text = strings.Replace(text, "\n", "", -1)
 
-	// fmt.Printf("Encrypted Text: %q\n", string(encryptedText))
-	// fmt.Printf("Decrypyed Text: %v", string(decryptedText))
+			if choosenMode = encryptionModes[text]; choosenMode != "" {
+				break
+			}
+			fmt.Println("Choose correct mode")
+		}
 
-	// f, _ := os.Create("output.txt")
+		socket.Write([]byte(choosenMode))
 
-	// defer f.Close()
+		fmt.Println("Write message to be encrypted")
+		text, _ := reader.ReadString('\n')
+		text = strings.Replace(text, "\n", "", -1)
 
-	// f.Write(encryptedText)
+		encryptedText := []byte{}
 
+		iv := make([]byte, blockSize)
+
+		fmt.Println("Message to be encrypted: " + text)
+		switch choosenMode {
+		case "ECB":
+			encryptedText = ecbEncrypt([]byte(text), []byte(key))
+		case "CBC":
+			encryptedText = cbcEncrypt([]byte(text), []byte(key), iv)
+		case "CFB":
+			encryptedText = cfbEncrypt([]byte(text), []byte(key), iv)
+		case "CTR":
+			encryptedText = ctrEncrypt([]byte(text), []byte(key))
+		default:
+			panic("An error has occured")
+		}
+
+		// prepare message for sending
+		encryptedText = createHMAC(encryptedText, []byte(key))
+
+		socket.Write(encryptedText)
+	}
 }

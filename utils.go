@@ -2,6 +2,7 @@ package main
 
 const blockSize = 8
 const hashLength = 32
+const keyLength = 8
 
 func paddText(text []byte) []byte {
 	paddingCount := blockSize - len(text)%blockSize
